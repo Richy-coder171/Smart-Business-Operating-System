@@ -75,6 +75,8 @@ describe("health and auth", () => {
     const response = await request(app).get("/api/health");
     expect(response.status).toBe(200);
     expect(response.body.database).toBe("connected");
+    expect(response.body.demoAiMode).toBe(true);
+    expect(response.body.gemini).toBe("not configured");
   });
 
   it("registers, logs in, rejects duplicates, hides hashes, and protects routes", async () => {
@@ -119,6 +121,12 @@ describe("customers", () => {
       phone: "9000000001"
     });
     expect(duplicate.status).toBe(409);
+
+    const missingPhone = await ownerOne.agent.post("/api/customers").send({
+      name: "No Phone"
+    });
+    expect(missingPhone.status).toBe(400);
+    expect(missingPhone.body.details.fieldErrors.phone[0]).toContain("Phone is required");
 
     const filtered = await ownerOne.agent.get("/api/customers?search=Ram&outstanding=false");
     expect(filtered.status).toBe(200);
@@ -249,6 +257,18 @@ describe("AI services", () => {
     expect(promise.status).toBe(201);
     expect(promise.body.analysis.intent).toBe("promise_to_pay");
     expect(promise.body.analysis.promisedPaymentDate).toBe("2026-07-05");
+    expect(promise.body.nextFollowUpUpdated).toBe(true);
+
+    const paymentClaim = await agent.post("/api/ai/analyze-reply").send({
+      customerId: customer._id,
+      message: "Payment kar diya"
+    });
+    expect(paymentClaim.status).toBe(201);
+    expect(paymentClaim.body.analysis.intent).toBe("payment_completed");
+    expect(paymentClaim.body.nextFollowUpUpdated).toBe(false);
+
+    const ledger = await agent.get(`/api/transactions/customer/${customer._id}`);
+    expect(ledger.body.transactions).toHaveLength(0);
 
     const unknown = await agent.post("/api/ai/analyze-reply").send({
       customerId: customer._id,

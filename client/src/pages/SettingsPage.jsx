@@ -12,6 +12,7 @@ export function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
   const [health, setHealth] = useState(null);
   const [error, setError] = useState("");
+  const apiBaseUrl = api.defaults.baseURL || "http://localhost:5000/api";
 
   async function loadHealth() {
     setError("");
@@ -39,11 +40,11 @@ export function SettingsPage() {
           <h2 className="text-base font-semibold">Owner</h2>
           <dl className="mt-4 grid gap-3 text-sm">
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Name</dt>
+              <dt className="text-slate-500">Business owner name</dt>
               <dd className="font-medium">{user?.name}</dd>
             </div>
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Business</dt>
+              <dt className="text-slate-500">Business name</dt>
               <dd className="font-medium">{user?.businessName}</dd>
             </div>
             <div className="flex justify-between gap-4">
@@ -51,7 +52,7 @@ export function SettingsPage() {
               <dd className="break-all font-medium">{user?.email}</dd>
             </div>
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Language</dt>
+              <dt className="text-slate-500">Preferred language</dt>
               <dd className="font-medium">{user?.preferredLanguage}</dd>
             </div>
           </dl>
@@ -70,6 +71,15 @@ export function SettingsPage() {
               {theme === "dark" ? "Dark" : "Light"}
             </button>
           </div>
+          <dl className="mt-4 grid gap-3 text-sm">
+            <StatusRow
+              label="Demo AI mode"
+              value={health ? (health.demoAiMode ? "Enabled" : "Disabled") : "Unknown"}
+              tone={health?.demoAiMode ? "amber" : "slate"}
+            />
+            <StatusRow label="Backend API URL" value={apiBaseUrl} />
+            <StatusRow label="Gemini status" value={health?.gemini || "Unknown"} tone={health?.gemini === "configured" ? "green" : "amber"} />
+          </dl>
         </section>
 
         <section className="panel lg:col-span-2">
@@ -82,14 +92,18 @@ export function SettingsPage() {
           </div>
           {error ? <div className="mt-4"><ErrorState message={error} /></div> : null}
           {health ? (
-            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-4">
               <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-950">
                 <dt className="text-slate-500">Status</dt>
                 <dd className="mt-1 font-semibold">{health.status}</dd>
               </div>
               <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-950">
-                <dt className="text-slate-500">Database</dt>
+                <dt className="text-slate-500">Database health status</dt>
                 <dd className="mt-1 font-semibold">{health.database}</dd>
+              </div>
+              <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-950">
+                <dt className="text-slate-500">Gemini status</dt>
+                <dd className="mt-1 font-semibold">{health.gemini}</dd>
               </div>
               <div className="rounded-md bg-slate-50 p-3 dark:bg-slate-950">
                 <dt className="text-slate-500">Timestamp</dt>
@@ -99,6 +113,21 @@ export function SettingsPage() {
           ) : null}
         </section>
       </div>
+    </div>
+  );
+}
+
+function StatusRow({ label, value, tone = "slate" }) {
+  const tones = {
+    green: "bg-emerald-50 text-emerald-700 dark:bg-emerald-600/20 dark:text-emerald-100",
+    amber: "bg-amber-50 text-amber-700 dark:bg-amber-600/20 dark:text-amber-100",
+    slate: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100"
+  };
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md bg-slate-50 p-3 dark:bg-slate-950">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className={`w-fit max-w-full break-all rounded-md px-2 py-1 text-xs font-semibold ${tones[tone]}`}>{value}</dd>
     </div>
   );
 }

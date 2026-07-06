@@ -9,6 +9,8 @@ import { generateReminderMessage } from "../services/ai/reminderService.js";
 import { assistantRequestSchema, reminderRequestSchema, replyRequestSchema } from "../validators/aiValidators.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { env } from "../config/env.js";
+import { hasGeminiConfig } from "../services/ai/geminiClient.js";
 
 function ensureObjectId(id, label = "id") {
   if (!isValidObjectId(id)) {
@@ -91,8 +93,10 @@ export const analyzeReply = asyncHandler(async (req, res) => {
   });
 
   customer.lastReplyIntent = analysis.intent;
+  let nextFollowUpUpdated = false;
   if (analysis.intent === "promise_to_pay" && analysis.promisedPaymentDate && analysis.confidence >= 0.6) {
     customer.nextFollowUpDate = new Date(`${analysis.promisedPaymentDate}T00:00:00.000Z`);
+    nextFollowUpUpdated = true;
   }
   await customer.save();
 
@@ -102,6 +106,7 @@ export const analyzeReply = asyncHandler(async (req, res) => {
       ...analysis,
       requiresManualReview: analysis.confidence < 0.6
     },
+    nextFollowUpUpdated,
     reply
   });
 });
@@ -111,7 +116,9 @@ export const businessInsights = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     insights,
-    generatedBy: "template"
+    generatedBy: "template",
+    demoAiMode: env.demoAiMode,
+    gemini: hasGeminiConfig() ? "configured" : "not configured"
   });
 });
 

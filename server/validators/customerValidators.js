@@ -6,9 +6,20 @@ const optionalString = (max) =>
     z.string().trim().max(max).optional()
   );
 
+function isReadableIndianPhone(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  const local = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits.replace(/^0+/, "");
+  return local.length === 10 && /^[6-9]/.test(local);
+}
+
 export const customerCreateSchema = z.object({
-  name: z.string().trim().min(2).max(120),
-  phone: optionalString(24),
+  name: z.string().trim().min(2, "Name is required.").max(120),
+  phone: z
+    .string({ required_error: "Phone is required." })
+    .trim()
+    .min(1, "Phone is required.")
+    .max(24)
+    .refine(isReadableIndianPhone, "Enter a valid Indian 10-digit phone number."),
   address: optionalString(300),
   creditLimit: z.coerce.number().min(0).optional().default(0),
   paymentTermsDays: z.coerce.number().int().min(0).max(365).optional().default(7),

@@ -7,9 +7,11 @@ const optionalString = (max) =>
   );
 
 export const transactionCreateSchema = z.object({
-  customerId: z.string().trim().min(1),
-  type: z.enum(["credit", "payment"]),
-  amount: z.coerce.number().positive(),
+  customerId: z.string().trim().min(1, "Customer must be selected."),
+  type: z.enum(["credit", "payment"], { errorMap: () => ({ message: "Transaction type must be credit or payment." }) }),
+  amount: z
+    .union([z.string().trim().min(1, "Amount is required."), z.number()])
+    .pipe(z.coerce.number().positive("Amount must be positive.")),
   description: optionalString(300),
   date: z.coerce.date().optional(),
   paymentMethod: optionalString(80),

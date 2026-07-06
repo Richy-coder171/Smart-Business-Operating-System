@@ -7,6 +7,7 @@ import { isDbConnected } from "./config/db.js";
 import { env } from "./config/env.js";
 import { apiLimiter, authLimiter } from "./middleware/rateLimiters.js";
 import { errorHandler, notFound } from "./middleware/errorHandler.js";
+import { hasGeminiConfig } from "./services/ai/geminiClient.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import customerRoutes from "./routes/customerRoutes.js";
@@ -41,6 +42,8 @@ app.get("/api/health", (req, res) => {
     success: connected,
     status: connected ? "healthy" : "degraded",
     database: connected ? "connected" : "disconnected",
+    demoAiMode: env.demoAiMode,
+    gemini: hasGeminiConfig() ? "configured" : "not configured",
     timestamp: new Date().toISOString()
   });
 });

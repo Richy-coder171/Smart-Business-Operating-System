@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "install:all": "npm install && cd client && npm install && cd ../server && npm install",
+    "ports": "powershell -ExecutionPolicy Bypass -File scripts/stop-smeos-ports.ps1",
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "dev:clean": "npm run ports && npm run dev",
     "dev:client": "npm run dev --prefix client",
     "dev:server": "npm run dev --prefix server",
     "build": "npm run build --prefix client",

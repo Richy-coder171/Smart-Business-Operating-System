@@ -5,8 +5,12 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 const schema = z.object({
-  name: z.string().min(2, "Name is required"),
-  phone: z.string().optional(),
+  name: z.string().trim().min(1, "Name is required"),
+  phone: z
+    .string()
+    .trim()
+    .min(1, "Phone is required")
+    .refine(isReadableIndianPhone, "Enter a valid Indian 10-digit phone number."),
   address: z.string().optional(),
   creditLimit: z.coerce.number().min(0),
   paymentTermsDays: z.coerce.number().min(0).max(365),
@@ -60,6 +64,7 @@ export function CustomerForm({ initialValues, onSubmit, submitting }) {
           Phone
         </label>
         <input id="phone" className="field" {...register("phone")} />
+        {errors.phone ? <p className="mt-1 text-xs text-red-600">{errors.phone.message}</p> : null}
       </div>
       <div>
         <label className="label" htmlFor="creditLimit">
@@ -90,7 +95,7 @@ export function CustomerForm({ initialValues, onSubmit, submitting }) {
       </div>
       <div className="sm:col-span-2">
         <label className="label" htmlFor="address">
-          Address
+          Address (optional)
         </label>
         <input id="address" className="field" {...register("address")} />
       </div>
@@ -108,4 +113,10 @@ export function CustomerForm({ initialValues, onSubmit, submitting }) {
       </div>
     </form>
   );
+}
+
+function isReadableIndianPhone(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  const local = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits.replace(/^0+/, "");
+  return local.length === 10 && /^[6-9]/.test(local);
 }

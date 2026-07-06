@@ -1,4 +1,6 @@
 import { Link } from "react-router-dom";
+import { RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -15,23 +17,37 @@ import {
 } from "recharts";
 import api from "../api/client";
 import { MetricCard } from "../components/dashboard/MetricCard";
-import { EmptyState, ErrorState, LoadingState } from "../components/common/States";
+import { DemoFlowHelper } from "../components/demo/DemoFlowHelper";
+import { EmptyState, ErrorState, Skeleton } from "../components/common/States";
 import { PageHeader } from "../components/common/PageHeader";
 import { useFetch } from "../hooks/useFetch";
-import { formatDate, formatINR } from "../utils/format";
+import { formatDate, formatDateTime, formatINR } from "../utils/format";
 
 const pieColors = ["#2563eb", "#0f9f6e", "#d97706", "#e45757"];
 
 export function DashboardPage() {
+  const [lastUpdated, setLastUpdated] = useState(null);
   const { data, loading, error, retry } = useFetch(async () => {
     const response = await api.get("/dashboard");
+    setLastUpdated(new Date());
     return response.data;
   }, []);
 
-  if (loading) return <LoadingState label="Loading dashboard" />;
+  useEffect(() => {
+    function handleMutation() {
+      retry();
+    }
+
+    window.addEventListener("smeos:data-mutated", handleMutation);
+    return () => window.removeEventListener("smeos:data-mutated", handleMutation);
+  }, [retry]);
+
+  if (loading) return <DashboardSkeleton />;
   if (error) return <ErrorState message={error} onRetry={retry} />;
 
   const summary = data.summary;
+  const movement = mergeMonthly(data.monthlyCredit, data.monthlyCollections);
+  const demoCustomer = data.topDebtors.find((customer) => customer.name?.toLowerCase() === "ramesh") || data.topDebtors[0];
 
   return (
     <div>
@@ -39,37 +55,125 @@ export function DashboardPage() {
         title="Dashboard"
         description="Live balances, collections, follow-ups, and ledger movement."
         action={
-          <Link to="/customers/new" className="btn-primary">
-            Add Customer
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn-secondary" onClick={retry}>
+              <RefreshCw size={18} />
+              Refresh
+            </button>
+            <Link to="/customers/new" className="btn-primary">
+              Add Customer
+            </Link>
+          </div>
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="Customers" value={summary.totalCustomers} />
-        <MetricCard label="Outstanding" value={formatINR(summary.totalOutstanding)} tone="red" />
-        <MetricCard label="Today Collected" value={formatINR(summary.todayCollections)} tone="green" />
-        <MetricCard label="Overdue" value={summary.overdueCustomers} tone="amber" />
-        <MetricCard label="Follow-ups" value={summary.pendingFollowUps} tone="blue" />
+      <div className="mb-5 flex flex-col gap-3 rounded-md border border-brand-100 bg-brand-50 p-4 text-sm text-brand-950 dark:border-brand-600/30 dark:bg-brand-600/10 dark:text-brand-100 sm:flex-row sm:items-center sm:justify-between">
+        <p className="font-medium">
+          {"Try: Add Ramesh \u2192 \u20b95,000 udhar \u2192 Analyze 'Kal payment kar dunga' \u2192 Record \u20b92,000 payment"}
+        </p>
+        <span className="text-xs text-brand-700 dark:text-brand-100">
+          Last updated: {formatDateTime(lastUpdated)}
+        </span>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-3">
-        <section className="panel xl:col-span-2">
-          <h2 className="text-base font-semibold text-slate-950 dark:text-white">Monthly movement</h2>
-          <div className="mt-4 h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={mergeMonthly(data.monthlyCredit, data.monthlyCollections)}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatINR(value)} />
-                <Bar dataKey="credit" fill="#2563eb" name="Credit" />
-                <Bar dataKey="collections" fill="#0f9f6e" name="Collections" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+      <DemoFlowHelper customer={demoCustomer} />
+
+      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <MetricCard label="Total Customers" value={summary.totalCustomers} />
+        <MetricCard label="Outstanding Amount" value={formatINR(summary.totalOutstanding)} tone="red" />
+        <MetricCard label="Today Collected" value={formatINR(summary.todayCollections)} tone="green" />
+        <MetricCard label="Overdue Customers" value={summary.overdueCustomers} tone="amber" />
+        <MetricCard label="Pending Follow-ups" value={summary.pendingFollowUps} tone="blue" />
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+        <section className="panel">
+          <h2 className="text-base font-semibold text-slate-950 dark:text-white">Credit vs Payment</h2>
+          {movement.length === 0 ? (
+            <div className="mt-4">
+              <EmptyState title="No monthly movement" description="Credit and payment trends appear after transactions." />
+            </div>
+          ) : (
+            <div className="mt-4 h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={movement}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatINR(value)} />
+                  <Bar dataKey="credit" fill="#2563eb" name="Monthly Credit" />
+                  <Bar dataKey="collections" fill="#0f9f6e" name="Monthly Collections" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </section>
 
+        <section className="panel">
+          <h2 className="text-base font-semibold text-slate-950 dark:text-white">Monthly Collections</h2>
+          {data.monthlyCollections.length === 0 ? (
+            <div className="mt-4">
+              <EmptyState title="No collections yet" description="Recorded payments will create a collection chart." />
+            </div>
+          ) : (
+            <div className="mt-4 h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data.monthlyCollections}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatINR(value)} />
+                  <Line type="monotone" dataKey="total" stroke="#0f9f6e" strokeWidth={2} name="Collections" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </section>
+
+        <section className="panel">
+          <h2 className="text-base font-semibold text-slate-950 dark:text-white">Monthly Credit</h2>
+          {data.monthlyCredit.length === 0 ? (
+            <div className="mt-4">
+              <EmptyState title="No credit yet" description="Udhar entries will create a credit chart." />
+            </div>
+          ) : (
+            <div className="mt-4 h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.monthlyCredit}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatINR(value)} />
+                  <Bar dataKey="total" fill="#2563eb" name="Credit" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </section>
+
+        <section className="panel">
+          <h2 className="text-base font-semibold text-slate-950 dark:text-white">Top Debtors</h2>
+          {data.topDebtors.length === 0 ? (
+            <div className="mt-4">
+              <EmptyState title="No pending dues" description="Outstanding balances will appear here." />
+            </div>
+          ) : (
+            <div className="mt-4 h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.topDebtors.map((customer) => ({ ...customer, chartName: customer.name }))} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="chartName" width={90} />
+                  <Tooltip formatter={(value) => formatINR(value)} />
+                  <Bar dataKey="totalDue" fill="#e45757" name="Outstanding" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-2">
         <section className="panel">
           <h2 className="text-base font-semibold text-slate-950 dark:text-white">Customer distribution</h2>
           {data.customerDistribution.length === 0 ? (
@@ -91,45 +195,26 @@ export function DashboardPage() {
             </div>
           )}
         </section>
-      </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
         <section className="panel">
           <h2 className="text-base font-semibold text-slate-950 dark:text-white">Due trend</h2>
-          <div className="mt-4 h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data.dueTrend}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatINR(value)} />
-                <Line type="monotone" dataKey="amount" stroke="#e45757" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-
-        <section className="panel">
-          <h2 className="text-base font-semibold text-slate-950 dark:text-white">Top debtors</h2>
-          <div className="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
-            {data.topDebtors.length === 0 ? (
-              <EmptyState title="No pending dues" description="Outstanding balances will appear here." />
-            ) : (
-              data.topDebtors.map((customer) => (
-                <Link
-                  key={customer._id}
-                  to={`/customers/${customer._id}`}
-                  className="flex items-center justify-between py-3 text-sm hover:text-brand-600"
-                >
-                  <span>
-                    <span className="font-medium">{customer.name}</span>
-                    <span className="ml-2 text-slate-500">{formatDate(customer.nextFollowUpDate)}</span>
-                  </span>
-                  <span className="font-semibold">{formatINR(customer.totalDue)}</span>
-                </Link>
-              ))
-            )}
-          </div>
+          {data.dueTrend.length === 0 ? (
+            <div className="mt-4">
+              <EmptyState title="No due trend yet" description="Customer balances will appear after ledger activity." />
+            </div>
+          ) : (
+            <div className="mt-4 h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data.dueTrend}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="label" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatINR(value)} />
+                  <Line type="monotone" dataKey="amount" stroke="#e45757" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </section>
       </div>
 
@@ -156,8 +241,31 @@ export function DashboardPage() {
               ))}
             </tbody>
           </table>
+          {data.recentTransactions.length === 0 ? (
+            <div className="mt-4">
+              <EmptyState title="No recent transactions" description="Credits and verified payments will appear here." />
+            </div>
+          ) : null}
         </div>
       </section>
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="grid gap-5">
+      <Skeleton className="h-16" />
+      <Skeleton className="h-32" />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <Skeleton key={index} className="h-28" />
+        ))}
+      </div>
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Skeleton className="h-80" />
+        <Skeleton className="h-80" />
+      </div>
     </div>
   );
 }

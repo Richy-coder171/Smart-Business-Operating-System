@@ -6,4 +6,17 @@ const api = axios.create({
   timeout: 15000
 });
 
+api.interceptors.response.use((response) => {
+  const method = response.config?.method?.toLowerCase();
+  const url = response.config?.url || "";
+  const mutatesData = ["post", "put", "patch", "delete"].includes(method);
+  const authOnly = url.startsWith("/auth/");
+
+  if (mutatesData && !authOnly && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("smeos:data-mutated", { detail: { method, url } }));
+  }
+
+  return response;
+});
+
 export default api;
